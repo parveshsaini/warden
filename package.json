@@ -24,7 +24,8 @@
     "lint:fix": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "eval": "tsx evals/run.ts"
+    "eval": "tsx evals/run.ts",
+    "bench": "tsx bench/latency.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -12,7 +12,7 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). This README will only ever claim what currently works.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). This README will only ever claim what currently works.
 
 ## Quick start (dev)
 
@@ -109,6 +109,20 @@ Audit entry per tool call:
 
 In HTTP mode, `GET /metrics` returns per-tool call/error counts and latency; `GET /healthz` reports upstream status.
 
+## Performance
+
+What does putting Warden in front of a server cost? [`bench/`](bench/) measures it — the same tool called directly vs through Warden, so the delta is pure gateway overhead. Reproduce with `pnpm bench`:
+
+```
+path                          p50      p90      p99
+------------------------------------------------------
+direct (no gateway)       0.513ms  0.772ms  1.487ms
+warden (passthrough)      1.115ms  1.596ms  3.110ms
+warden (full security)    1.208ms  1.616ms  2.782ms
+```
+
+**Median overhead is ~0.6ms** — the cost of the extra stdio hop a gateway inherently adds. The **full security layer** (policy + rate limit + tool screening + per-output injection scanning + audit) adds only **~0.1ms** on top of bare passthrough: the detection work is nearly free next to the IPC hop. Against a real tool that does I/O (tens to hundreds of ms), Warden's fixed cost is in the noise. Absolute numbers are machine-dependent — see [`bench/README.md`](bench/README.md) for the method (interleaved paths, warmup, fixed payload) and the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) conformance check.
+
 ## Roadmap
 
 - [x] **Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
@@ -116,7 +130,7 @@ In HTTP mode, `GET /metrics` returns per-tool call/error counts and latency; `GE
 - [x] **Observability**: OTel trace per tool call, JSONL audit log, metrics
 - [x] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
 - [x] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
-- [ ] **Performance benchmark**: proxy overhead p50/p99, methodology committed
+- [x] **Performance benchmark**: proxy overhead p50/p99, methodology committed
 - [ ] **v0.1 release**: npm + Docker + Cloud Run reference deploy, auth, docs
 
 ## Planned architecture
