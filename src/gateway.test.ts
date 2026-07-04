@@ -2,7 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WardenConfig } from "./config.js";
-import { type Gateway, createGateway } from "./gateway.js";
+import { buildGatewayServer, namespaceTool, splitNamespacedTool } from "./gateway.js";
+import { UpstreamPool } from "./upstreams.js";
 
 const fixtureConfig: WardenConfig = {
   servers: [
@@ -13,45 +14,81 @@ const fixtureConfig: WardenConfig = {
       args: ["test/fixtures/echo-server.mjs"],
       env: {},
     },
+    {
+      name: "math",
+      transport: "stdio",
+      command: process.execPath,
+      args: ["test/fixtures/math-server.mjs"],
+      env: {},
+    },
   ],
 };
 
-describe("gateway passthrough", () => {
-  let gateway: Gateway;
+describe("tool namespacing", () => {
+  it("round-trips server/tool names", () => {
+    expect(namespaceTool("fs", "read_file")).toBe("fs__read_file");
+    expect(splitNamespacedTool("fs__read_file")).toEqual({
+      serverName: "fs",
+      toolName: "read_file",
+    });
+  });
+
+  it("splits on the first separator only", () => {
+    expect(splitNamespacedTool("a__b__c")).toEqual({ serverName: "a", toolName: "b__c" });
+  });
+
+  it("returns undefined for names without a namespace", () => {
+    expect(splitNamespacedTool("plain")).toBeUndefined();
+    expect(splitNamespacedTool("__tool")).toBeUndefined();
+    expect(splitNamespacedTool("server__")).toBeUndefined();
+  });
+});
+
+describe("federated gateway", () => {
+  let pool: UpstreamPool;
   let client: Client;
 
   beforeAll(async () => {
-    gateway = await createGateway(fixtureConfig);
+    pool = await UpstreamPool.connect(fixtureConfig);
+    const server = buildGatewayServer(pool);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await gateway.server.connect(serverTransport);
+    await server.connect(serverTransport);
     client = new Client({ name: "test-client", version: "0.0.0" });
     await client.connect(clientTransport);
   });
 
   afterAll(async () => {
     await client.close();
-    await gateway.close();
+    await pool.close();
   });
 
-  it("forwards tools/list from the upstream server", async () => {
+  it("federates tools from all upstreams into one namespaced catalog", async () => {
     const result = await client.listTools();
-    expect(result.tools.map((tool) => tool.name)).toContain("echo");
+    const names = result.tools.map((tool) => tool.name);
+    expect(names).toContain("echo__echo");
+    expect(names).toContain("math__add");
   });
 
-  it("round-trips a tools/call through the gateway", async () => {
-    const result = await client.callTool({
-      name: "echo",
-      arguments: { message: "hello through warden" },
+  it("routes namespaced calls to the owning upstream", async () => {
+    const echoResult = await client.callTool({
+      name: "echo__echo",
+      arguments: { message: "federated" },
     });
-    expect(result.content).toEqual([{ type: "text", text: "echo: hello through warden" }]);
+    expect(echoResult.content).toEqual([{ type: "text", text: "echo: federated" }]);
+
+    const mathResult = await client.callTool({
+      name: "math__add",
+      arguments: { a: 2, b: 40 },
+    });
+    expect(mathResult.content).toEqual([{ type: "text", text: "42" }]);
   });
 
-  it("rejects configs with more than one server until federation lands", async () => {
-    const [first] = fixtureConfig.servers;
-    if (!first) throw new Error("fixture config is empty");
-    const twoServers: WardenConfig = {
-      servers: [first, { ...first, name: "echo2" }],
-    };
-    await expect(createGateway(twoServers)).rejects.toThrow(/exactly one/);
+  it("rejects calls to unknown namespaces with a helpful error", async () => {
+    await expect(client.callTool({ name: "nope__tool", arguments: {} })).rejects.toThrow(
+      /unknown tool/,
+    );
+    await expect(client.callTool({ name: "unnamespaced", arguments: {} })).rejects.toThrow(
+      /unknown tool/,
+    );
   });
 });

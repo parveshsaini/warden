@@ -12,24 +12,35 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden is a working stdio passthrough proxy for a single MCP server — `initialize`, `tools/list`, and `tools/call` round-trip through it (verified with MCP Inspector against `@modelcontextprotocol/server-everything`). No federation, security, or observability yet. This README will only ever claim what currently works — follow the roadmap below.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). No security or observability layer yet. This README will only ever claim what currently works — follow the roadmap below.
 
 ## Quick start (dev)
 
 ```bash
 pnpm install && pnpm build
-# warden.config.yaml
+
+# warden.config.yaml — see examples/warden.config.yaml
 # servers:
 #   - name: everything
 #     command: npx
 #     args: ["-y", "@modelcontextprotocol/server-everything"]
-npx @modelcontextprotocol/inspector --cli node dist/cli.js --method tools/call --tool-name echo --tool-arg "message=hi"
+#   - name: fs
+#     command: npx
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+
+# stdio (default) — tools appear as everything__echo, fs__read_file, ...
+npx @modelcontextprotocol/inspector --cli node dist/cli.js \
+  --method tools/call --tool-name everything__echo --tool-arg "message=hi"
+
+# Streamable HTTP
+node dist/cli.js --http   # serves http://127.0.0.1:3000/mcp
+npx @modelcontextprotocol/inspector --cli http://127.0.0.1:3000/mcp --transport http --method tools/list
 ```
 
 ## Roadmap
 
 - [x] **Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
-- [ ] **Federation + Streamable HTTP**: many servers behind one endpoint, namespaced catalog, config-driven
+- [x] **Federation + Streamable HTTP**: many servers behind one endpoint, namespaced catalog, config-driven
 - [ ] **Observability**: OTel trace per tool call, JSONL audit log, metrics
 - [ ] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
 - [ ] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall

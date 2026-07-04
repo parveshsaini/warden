@@ -1,68 +1,75 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import {
-  StdioClientTransport,
-  getDefaultEnvironment,
-} from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
-  CallToolResultSchema,
+  ErrorCode,
   ListToolsRequestSchema,
-  ListToolsResultSchema,
+  McpError,
+  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { ServerConfig, WardenConfig } from "./config.js";
 import { WARDEN_VERSION } from "./index.js";
+import type { UpstreamPool } from "./upstreams.js";
 
-export interface Gateway {
-  server: Server;
-  close(): Promise<void>;
-}
+/** Separator between the upstream server name and the tool name. */
+export const NAMESPACE_SEPARATOR = "__";
 
-async function connectUpstream(config: ServerConfig): Promise<Client> {
-  const client = new Client({ name: "warden", version: WARDEN_VERSION });
-  const transport = new StdioClientTransport({
-    command: config.command,
-    args: config.args,
-    env: { ...getDefaultEnvironment(), ...config.env },
-    stderr: "inherit",
-  });
-  await client.connect(transport);
-  return client;
+export function namespaceTool(serverName: string, toolName: string): string {
+  return `${serverName}${NAMESPACE_SEPARATOR}${toolName}`;
 }
 
 /**
- * Creates the Warden gateway: an MCP server that proxies tools/list and
- * tools/call to one upstream MCP server. Federation across multiple
- * upstreams is on the roadmap.
+ * Splits a namespaced tool name into server + original tool name.
+ * Server names cannot contain "__" (enforced by config validation), so
+ * splitting on the first separator is unambiguous.
  */
-export async function createGateway(config: WardenConfig): Promise<Gateway> {
-  const upstreamConfig = config.servers[0];
-  if (!upstreamConfig || config.servers.length !== 1) {
-    throw new Error(
-      `expected exactly one upstream server (federation is not supported yet), got ${config.servers.length}`,
-    );
+export function splitNamespacedTool(
+  namespaced: string,
+): { serverName: string; toolName: string } | undefined {
+  const index = namespaced.indexOf(NAMESPACE_SEPARATOR);
+  if (index <= 0 || index + NAMESPACE_SEPARATOR.length >= namespaced.length) {
+    return undefined;
   }
+  return {
+    serverName: namespaced.slice(0, index),
+    toolName: namespaced.slice(index + NAMESPACE_SEPARATOR.length),
+  };
+}
 
-  const upstream = await connectUpstream(upstreamConfig);
-
+/**
+ * Builds a Warden gateway MCP server backed by a shared upstream pool.
+ * Tools from all upstreams are federated into one catalog, namespaced as
+ * "<server>__<tool>"; calls are routed back to the owning upstream.
+ *
+ * Cheap to construct — one instance per client session/transport.
+ */
+export function buildGatewayServer(pool: UpstreamPool): Server {
   const server = new Server(
     { name: "warden", version: WARDEN_VERSION },
     { capabilities: { tools: {} } },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async (request) =>
-    upstream.request({ method: "tools/list", params: request.params }, ListToolsResultSchema),
-  );
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const perServer = await Promise.all(
+      pool.serverNames.map(async (serverName) => {
+        const tools = await pool.listTools(serverName);
+        return tools.map((tool): Tool => ({ ...tool, name: namespaceTool(serverName, tool.name) }));
+      }),
+    );
+    return { tools: perServer.flat() };
+  });
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) =>
-    upstream.request({ method: "tools/call", params: request.params }, CallToolResultSchema),
-  );
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const split = splitNamespacedTool(request.params.name);
+    if (!split || !pool.serverNames.includes(split.serverName)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `unknown tool "${request.params.name}" — expected "<server>${NAMESPACE_SEPARATOR}<tool>" with server one of: ${pool.serverNames.join(", ")}`,
+      );
+    }
+    return pool.callTool(split.serverName, {
+      name: split.toolName,
+      ...(request.params.arguments !== undefined && { arguments: request.params.arguments }),
+    });
+  });
 
-  return {
-    server,
-    close: async () => {
-      await upstream.close();
-      await server.close();
-    },
-  };
+  return server;
 }

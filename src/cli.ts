@@ -2,12 +2,14 @@
 import { existsSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfigFile } from "./config.js";
-import { createGateway } from "./gateway.js";
+import { buildGatewayServer } from "./gateway.js";
+import { startHttpGateway } from "./http.js";
 import { WARDEN_VERSION } from "./index.js";
+import { UpstreamPool } from "./upstreams.js";
 
 const DEFAULT_CONFIG_CANDIDATES = ["warden.config.yaml", "warden.config.yml", "warden.config.json"];
 
-// stdout is the MCP protocol channel — everything human-readable goes to stderr.
+// stdout is the MCP protocol channel in stdio mode — human-readable output goes to stderr.
 function log(message: string): void {
   console.error(`[warden] ${message}`);
 }
@@ -41,18 +43,30 @@ async function main(): Promise<void> {
 
   const configPath = resolveConfigPath(argv);
   const config = loadConfigFile(configPath);
-  log(`config loaded from ${configPath} (${config.servers.length} upstream server)`);
+  log(
+    `config loaded from ${configPath} (${config.servers.length} upstream server${config.servers.length === 1 ? "" : "s"})`,
+  );
 
-  const gateway = await createGateway(config);
+  const pool = await UpstreamPool.connect(config);
+  log(`upstreams connected: ${pool.serverNames.join(", ")}`);
+
   const shutdown = async () => {
-    await gateway.close();
+    await pool.close();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  await gateway.server.connect(new StdioServerTransport());
-  log(`mcp-warden v${WARDEN_VERSION} ready on stdio, proxying "${config.servers[0]?.name}"`);
+  if (argv.includes("--http")) {
+    const listen = config.http ?? { port: 3000, host: "127.0.0.1" };
+    await startHttpGateway(pool, listen);
+    log(`mcp-warden v${WARDEN_VERSION} listening on http://${listen.host}:${listen.port}/mcp`);
+    return;
+  }
+
+  const server = buildGatewayServer(pool);
+  await server.connect(new StdioServerTransport());
+  log(`mcp-warden v${WARDEN_VERSION} ready on stdio`);
 }
 
 main().catch((error) => {

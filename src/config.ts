@@ -8,11 +8,20 @@ const serverNamePattern = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 export const stdioServerSchema = z.object({
   name: z
     .string()
-    .regex(serverNamePattern, "server name must be alphanumeric with dashes/underscores"),
+    .regex(serverNamePattern, "server name must be alphanumeric with dashes/underscores")
+    .refine(
+      (name) => !name.includes("__"),
+      "server name must not contain '__' (reserved as the tool namespace separator)",
+    ),
   transport: z.literal("stdio").default("stdio"),
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
   env: z.record(z.string(), z.string()).default({}),
+});
+
+export const httpListenSchema = z.object({
+  port: z.number().int().min(1).max(65535).default(3000),
+  host: z.string().default("127.0.0.1"),
 });
 
 export const wardenConfigSchema = z.object({
@@ -23,6 +32,7 @@ export const wardenConfigSchema = z.object({
       (servers) => new Set(servers.map((s) => s.name)).size === servers.length,
       "server names must be unique",
     ),
+  http: httpListenSchema.optional(),
 });
 
 export type ServerConfig = z.infer<typeof stdioServerSchema>;
