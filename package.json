@@ -23,13 +23,15 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval": "tsx evals/run.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },

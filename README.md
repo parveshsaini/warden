@@ -12,7 +12,7 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is not yet benchmarked — the published precision/recall eval is next on the roadmap. This README will only ever claim what currently works.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). This README will only ever claim what currently works.
 
 ## Quick start (dev)
 
@@ -75,6 +75,19 @@ MCP error -32600: [warden] tool "px__get_weather" is quarantined
 
 Every denial lands in the audit log with a `denyReason` (`policy`, `rate_limit`, `approval`, `poisoned_tool`, `poisoned_output`).
 
+### How good is the detector?
+
+Not a claim — a number. [`evals/`](evals/) holds a committed corpus of 93 labeled tool definitions (malicious tool-poisoning/injection/exfiltration/credential-theft plus realistic benign tools that legitimately mention files, URLs, and secrets) and a harness that scores the detector. Reproduce with `pnpm eval`:
+
+```
+Blocking decision (verdict = malicious -> quarantined):
+  precision: 93.5%   (43/46 flagged were truly malicious)
+  recall:    87.8%   (43/49 malicious tools blocked)
+  F1:        90.5%
+```
+
+That's the offline heuristic tier — no API key. The corpus intentionally includes keyword-free semantic attacks the rules are *not* expected to catch (they're the case for the LLM-judge tier), and the harness prints every false positive and false negative by id. See [`evals/README.md`](evals/README.md) for the data format and methodology.
+
 ## Observability
 
 Add to `warden.config.yaml` (all optional — zero overhead when off):
@@ -102,7 +115,7 @@ In HTTP mode, `GET /metrics` returns per-tool call/error counts and latency; `GE
 - [x] **Federation + Streamable HTTP**: many servers behind one endpoint, namespaced catalog, config-driven
 - [x] **Observability**: OTel trace per tool call, JSONL audit log, metrics
 - [x] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
-- [ ] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
+- [x] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
 - [ ] **Performance benchmark**: proxy overhead p50/p99, methodology committed
 - [ ] **v0.1 release**: npm + Docker + Cloud Run reference deploy, auth, docs
 

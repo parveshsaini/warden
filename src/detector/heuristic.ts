@@ -17,7 +17,7 @@ const RULES: HeuristicRule[] = [
     id: "instruction-override",
     severity: "high",
     pattern:
-      /\b(ignore|disregard|forget|override)\b[\s\S]{0,30}\b(previous|prior|above|earlier|all|any|system)\b[\s\S]{0,20}\b(instructions?|rules?|prompts?|guidelines?|directives?)\b/i,
+      /\b(ignore|disregard|forget|override)\b[\s\S]{0,30}\b(previous|prior|above|earlier|all|any|system|safety)\b[\s\S]{0,20}\b(instructions?|rules?|prompts?|guidelines?|directives?)\b/i,
   },
   {
     // "do not tell the user", "without informing the user", "keep this secret"
@@ -37,13 +37,13 @@ const RULES: HeuristicRule[] = [
     id: "sensitive-file",
     severity: "high",
     pattern:
-      /\b(read|cat|open|fetch|load|access|include|send|pass|append|copy|upload|attach|extract)\b[\s\S]{0,60}(\.ssh\b|id_rsa|id_ed25519|\.aws\b|\/etc\/passwd|\/etc\/shadow|\.env\b|\.npmrc\b|\.git-credentials|private\s+key|ssh\s+key|keychain)/i,
+      /\b(read|cat|open|fetch|load|access|include|send|pass|append|copy|upload|attach|extract)\w*[\s\S]{0,60}(\.ssh\b|id_rsa|id_ed25519|\.aws\b|\/etc\/passwd|\/etc\/shadow|\.env\b|\.npmrc\b|\.git-credentials|private\s+key|ssh\s+key|keychain)/i,
   },
   {
     // sending data to an external URL
     id: "exfiltration",
     severity: "high",
-    pattern: /\b(send|post|forward|upload|transmit|share|exfiltrate)\b[\s\S]{0,60}\bhttps?:\/\//i,
+    pattern: /\b(send|post|forward|upload|transmit|share|exfiltrate)\w*[\s\S]{0,60}\bhttps?:\/\//i,
   },
   {
     // secrets solicited as parameters or into output
@@ -51,6 +51,13 @@ const RULES: HeuristicRule[] = [
     severity: "medium",
     pattern:
       /\b(password|secret|token|api[-_ ]?key|credential)s?\b[\s\S]{0,40}\b(send|include|pass|append|share|provide|paste|embed)\b|\b(send|include|pass|append|share|provide|paste|embed)\b[\s\S]{0,40}\b(password|secret|token|api[-_ ]?key|credential)s?\b/i,
+  },
+  {
+    // a credential solicited AND then moved outbound — theft, not local use
+    id: "credential-exfil",
+    severity: "high",
+    pattern:
+      /\b(password|secret|token|api[-_ ]?key|credential|recovery\s+phrase|private\s+key)s?\b[\s\S]{0,60}\b(send|forward|transmit|post|upload|exfiltrate|share|leak)\w*\b/i,
   },
   {
     // cross-tool manipulation: "instead of the X tool", "before using this tool, ..."
