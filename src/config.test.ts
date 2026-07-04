@@ -48,6 +48,38 @@ servers:
     ).toThrow(/unique/);
   });
 
+  it("parses the security block with detector defaults", () => {
+    const config = parseConfig(
+      `
+servers:
+  - name: fs
+    command: node
+security:
+  policy:
+    defaultAction: allow
+    rules:
+      - action: deny
+        tools: ["fs__delete_*"]
+  rateLimit:
+    callsPerMinute: 120
+  detector:
+    tier: heuristic
+  approval:
+    tools: ["fs__write_*"]
+`,
+      "yaml",
+    );
+    expect(config.security?.policy?.rules).toHaveLength(1);
+    expect(config.security?.rateLimit?.callsPerMinute).toBe(120);
+    expect(config.security?.detector).toMatchObject({
+      tier: "heuristic",
+      scanDescriptions: true,
+      scanOutputs: true,
+      mode: "block",
+    });
+    expect(config.security?.approval?.tools).toEqual(["fs__write_*"]);
+  });
+
   it("rejects invalid server names", () => {
     expect(() =>
       parseConfig(

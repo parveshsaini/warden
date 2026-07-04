@@ -5,7 +5,10 @@ coverage/
 .env
 .env.*
 .DS_Store
-warden.config.yaml
+# local dev config at the repo root only (examples/ stays tracked)
+/warden.config.yaml
+/warden.config.yml
+/warden.config.json
 
 # internal working notes — never publish
 docs/build-log.md

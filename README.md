@@ -12,7 +12,7 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`). No security layer yet. This README will only ever claim what currently works — follow the roadmap below.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is not yet benchmarked — the published precision/recall eval is next on the roadmap. This README will only ever claim what currently works.
 
 ## Quick start (dev)
 
@@ -36,6 +36,44 @@ npx @modelcontextprotocol/inspector --cli node dist/cli.js \
 node dist/cli.js --http   # serves http://127.0.0.1:3000/mcp
 npx @modelcontextprotocol/inspector --cli http://127.0.0.1:3000/mcp --transport http --method tools/list
 ```
+
+## Security
+
+Add a `security` block to `warden.config.yaml` (every part optional):
+
+```yaml
+security:
+  policy:
+    defaultAction: allow            # or deny (allowlist mode)
+    rules:                          # first match wins; "*" wildcards
+      - action: deny
+        tools: ["fs__delete_*", "everything__get-env"]
+        # clients: ["cursor*"]      # optionally scope a rule to MCP client names
+  rateLimit:
+    callsPerMinute: 120             # token bucket, shared per gateway process
+  detector:
+    tier: heuristic                 # "heuristic" (no API key) or "llm" (adds a
+                                    # Claude judge via ANTHROPIC_API_KEY)
+    scanDescriptions: true          # quarantine poisoned tool definitions
+    scanOutputs: true               # block prompt injection in tool results
+    mode: block                     # or "warn" to only audit
+  approval:
+    tools: ["fs__write_*"]          # require approval per call; fails closed
+                                    # unless an approval handler is wired in
+```
+
+What the detector catches (heuristic tier — rule-based, offline): hidden instruction tags (`<IMPORTANT>`-style tool poisoning), instruction overrides, concealment ("don't tell the user"), sensitive-file access lures (`~/.ssh`, `.env`, ...), exfiltration to external URLs, cross-tool shadowing, invisible Unicode, and encoded payloads. The `llm` tier escalates anything the rules don't conclusively flag to a Claude model for a second opinion, and degrades gracefully to the heuristic result if the API is unavailable.
+
+A quarantined tool disappears from the federated catalog and calls to it are rejected — here against this repo's poisoned fixture server (`test/fixtures/poisoned-server.mjs`, upstream name `px`):
+
+```
+$ npx @modelcontextprotocol/inspector --cli node dist/cli.js \
+    --method tools/call --tool-name px__get_weather --tool-arg city=Berlin
+MCP error -32600: [warden] tool "px__get_weather" is quarantined
+  (flagged: concealment, hidden-tag, sensitive-file, tool-shadowing)
+```
+
+Every denial lands in the audit log with a `denyReason` (`policy`, `rate_limit`, `approval`, `poisoned_tool`, `poisoned_output`).
 
 ## Observability
 
@@ -63,7 +101,7 @@ In HTTP mode, `GET /metrics` returns per-tool call/error counts and latency; `GE
 - [x] **Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
 - [x] **Federation + Streamable HTTP**: many servers behind one endpoint, namespaced catalog, config-driven
 - [x] **Observability**: OTel trace per tool call, JSONL audit log, metrics
-- [ ] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
+- [x] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
 - [ ] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
 - [ ] **Performance benchmark**: proxy overhead p50/p99, methodology committed
 - [ ] **v0.1 release**: npm + Docker + Cloud Run reference deploy, auth, docs

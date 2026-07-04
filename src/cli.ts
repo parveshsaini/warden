@@ -7,6 +7,7 @@ import { type GatewayHooks, buildGatewayServer } from "./gateway.js";
 import { startHttpGateway } from "./http.js";
 import { WARDEN_VERSION } from "./index.js";
 import { MetricsRegistry } from "./metrics.js";
+import { SecurityEngine } from "./security.js";
 import { startTelemetry } from "./telemetry.js";
 import { UpstreamPool } from "./upstreams.js";
 
@@ -57,6 +58,26 @@ async function main(): Promise<void> {
   if (config.observability?.audit) {
     hooks.audit = createAuditLogger(config.observability.audit);
     log(`audit log: ${config.observability.audit.path}`);
+  }
+
+  if (config.security) {
+    hooks.security = new SecurityEngine(config.security, {
+      ...(hooks.audit && { audit: hooks.audit }),
+      onJudgeError: (error) =>
+        log(
+          `llm judge unavailable, using heuristic result: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+    });
+    const parts = [
+      config.security.policy && "policy",
+      config.security.rateLimit && `rate-limit ${config.security.rateLimit.callsPerMinute}/min`,
+      config.security.detector && `detector (${hooks.security.detectorTier})`,
+      config.security.approval && "approval-gate",
+    ].filter(Boolean);
+    log(`security enabled: ${parts.join(", ")}`);
+    if (config.security.detector?.tier === "llm" && hooks.security.detectorTier === "heuristic") {
+      log("ANTHROPIC_API_KEY not set — detector running heuristic tier only");
+    }
   }
 
   const pool = await UpstreamPool.connect(config);

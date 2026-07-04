@@ -1,0 +1,39 @@
+# Example Warden config: federate two reference MCP servers behind one gateway.
+servers:
+  - name: everything
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+  - name: fs
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/dir"]
+
+# Optional: serve over Streamable HTTP with `mcp-warden --http` (default is stdio).
+http:
+  port: 3000
+  host: 127.0.0.1
+
+# Optional: traces, audit log, metrics. Zero overhead when omitted.
+observability:
+  otlpEndpoint: http://localhost:4318 # OTLP/HTTP trace exporter endpoint
+  audit:
+    path: warden-audit.jsonl
+    includeArguments: false # tool arguments are redacted unless true
+
+# Optional: security layer. Every sub-block is independent and optional.
+security:
+  policy:
+    defaultAction: allow # "deny" turns the rules into an allowlist
+    rules: # first matching rule wins; "*" wildcards
+      - action: deny
+        tools: ["fs__*delete*", "everything__get-env"]
+  rateLimit:
+    callsPerMinute: 120 # shared token bucket per gateway process
+  detector:
+    tier: heuristic # "llm" adds a Claude judge (needs ANTHROPIC_API_KEY)
+    scanDescriptions: true # quarantine poisoned tool definitions
+    scanOutputs: true # block prompt injection in tool results
+    mode: block # "warn" only audits instead of blocking
+  approval:
+    tools: ["fs__write_*"] # per-call approval; fails closed without a handler

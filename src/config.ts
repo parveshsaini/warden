@@ -40,6 +40,53 @@ export const observabilitySchema = z.object({
     .optional(),
 });
 
+export const policyRuleSchema = z.object({
+  action: z.enum(["allow", "deny"]),
+  /** Namespaced tool patterns; "*" wildcards, e.g. "fs__delete_*". */
+  tools: z.array(z.string().min(1)).min(1),
+  /**
+   * Optional MCP client-name patterns this rule applies to. Client identity
+   * comes from the MCP initialize handshake; rules with `clients` only match
+   * when the client name is known.
+   */
+  clients: z.array(z.string().min(1)).optional(),
+});
+
+export const policySchema = z.object({
+  defaultAction: z.enum(["allow", "deny"]).default("allow"),
+  /** First matching rule wins. */
+  rules: z.array(policyRuleSchema).default([]),
+});
+
+export const detectorSchema = z.object({
+  /** "heuristic" needs no API key; "llm" adds a Claude judge via ANTHROPIC_API_KEY. */
+  tier: z.enum(["heuristic", "llm"]).default("heuristic"),
+  model: z.string().default("claude-haiku-4-5-20251001"),
+  /** Scan upstream tool descriptions; malicious tools are quarantined. */
+  scanDescriptions: z.boolean().default(true),
+  /** Scan tool call results for prompt injection before they reach the client. */
+  scanOutputs: z.boolean().default(true),
+  /** "block" rejects malicious tools/outputs; "warn" only audits them. */
+  mode: z.enum(["block", "warn"]).default("block"),
+});
+
+export const securitySchema = z.object({
+  policy: policySchema.optional(),
+  rateLimit: z
+    .object({
+      /** Global tools/call budget for this gateway process (token bucket). */
+      callsPerMinute: z.number().int().min(1),
+    })
+    .optional(),
+  detector: detectorSchema.optional(),
+  approval: z
+    .object({
+      /** Namespaced tool patterns that require approval before every call. */
+      tools: z.array(z.string().min(1)).min(1),
+    })
+    .optional(),
+});
+
 export const wardenConfigSchema = z.object({
   servers: z
     .array(stdioServerSchema)
@@ -50,9 +97,14 @@ export const wardenConfigSchema = z.object({
     ),
   http: httpListenSchema.optional(),
   observability: observabilitySchema.optional(),
+  security: securitySchema.optional(),
 });
 
 export type ServerConfig = z.infer<typeof stdioServerSchema>;
+export type PolicyRule = z.infer<typeof policyRuleSchema>;
+export type PolicyConfig = z.infer<typeof policySchema>;
+export type DetectorConfig = z.infer<typeof detectorSchema>;
+export type SecurityConfig = z.infer<typeof securitySchema>;
 export type WardenConfig = z.infer<typeof wardenConfigSchema>;
 
 export function parseConfig(text: string, format: "yaml" | "json"): WardenConfig {
