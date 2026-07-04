@@ -1,12 +1,13 @@
 import type { Server as HttpServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
-import { buildGatewayServer } from "./gateway.js";
+import { type GatewayHooks, buildGatewayServer } from "./gateway.js";
 import type { UpstreamPool } from "./upstreams.js";
 
 export interface HttpGatewayOptions {
   port: number;
   host: string;
+  hooks?: GatewayHooks;
 }
 
 /**
@@ -24,7 +25,7 @@ export async function startHttpGateway(
   app.use(express.json());
 
   app.post("/mcp", async (req, res) => {
-    const server = buildGatewayServer(pool);
+    const server = buildGatewayServer(pool, options.hooks);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
@@ -60,6 +61,15 @@ export async function startHttpGateway(
 
   app.get("/healthz", (_req, res) => {
     res.json({ status: "ok", servers: pool.serverNames });
+  });
+
+  app.get("/metrics", (_req, res) => {
+    const metrics = options.hooks?.metrics;
+    if (!metrics) {
+      res.status(404).json({ error: "metrics not enabled" });
+      return;
+    }
+    res.json(metrics.snapshot());
   });
 
   return new Promise((resolve) => {

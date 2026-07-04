@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createAuditLogger } from "./audit.js";
 import { loadConfigFile } from "./config.js";
-import { buildGatewayServer } from "./gateway.js";
+import { type GatewayHooks, buildGatewayServer } from "./gateway.js";
 import { startHttpGateway } from "./http.js";
 import { WARDEN_VERSION } from "./index.js";
+import { MetricsRegistry } from "./metrics.js";
+import { startTelemetry } from "./telemetry.js";
 import { UpstreamPool } from "./upstreams.js";
 
 const DEFAULT_CONFIG_CANDIDATES = ["warden.config.yaml", "warden.config.yml", "warden.config.json"];
@@ -47,11 +50,22 @@ async function main(): Promise<void> {
     `config loaded from ${configPath} (${config.servers.length} upstream server${config.servers.length === 1 ? "" : "s"})`,
   );
 
+  const stopTelemetry = startTelemetry(config);
+  if (stopTelemetry) log("otel tracing enabled");
+
+  const hooks: GatewayHooks = { metrics: new MetricsRegistry() };
+  if (config.observability?.audit) {
+    hooks.audit = createAuditLogger(config.observability.audit);
+    log(`audit log: ${config.observability.audit.path}`);
+  }
+
   const pool = await UpstreamPool.connect(config);
   log(`upstreams connected: ${pool.serverNames.join(", ")}`);
 
   const shutdown = async () => {
+    hooks.audit?.flush();
     await pool.close();
+    await stopTelemetry?.();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -59,12 +73,12 @@ async function main(): Promise<void> {
 
   if (argv.includes("--http")) {
     const listen = config.http ?? { port: 3000, host: "127.0.0.1" };
-    await startHttpGateway(pool, listen);
+    await startHttpGateway(pool, { ...listen, hooks });
     log(`mcp-warden v${WARDEN_VERSION} listening on http://${listen.host}:${listen.port}/mcp`);
     return;
   }
 
-  const server = buildGatewayServer(pool);
+  const server = buildGatewayServer(pool, hooks);
   await server.connect(new StdioServerTransport());
   log(`mcp-warden v${WARDEN_VERSION} ready on stdio`);
 }

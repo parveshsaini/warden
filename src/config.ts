@@ -24,6 +24,22 @@ export const httpListenSchema = z.object({
   host: z.string().default("127.0.0.1"),
 });
 
+export const observabilitySchema = z.object({
+  /**
+   * OTLP/HTTP traces endpoint (e.g. "http://localhost:4318/v1/traces").
+   * Falls back to OTEL_EXPORTER_OTLP_ENDPOINT; tracing is off when neither is set.
+   */
+  otlpEndpoint: z.string().url().optional(),
+  audit: z
+    .object({
+      /** JSONL audit log destination. */
+      path: z.string().default("warden-audit.jsonl"),
+      /** Tool call arguments are redacted from the audit log unless enabled. */
+      includeArguments: z.boolean().default(false),
+    })
+    .optional(),
+});
+
 export const wardenConfigSchema = z.object({
   servers: z
     .array(stdioServerSchema)
@@ -33,6 +49,7 @@ export const wardenConfigSchema = z.object({
       "server names must be unique",
     ),
   http: httpListenSchema.optional(),
+  observability: observabilitySchema.optional(),
 });
 
 export type ServerConfig = z.infer<typeof stdioServerSchema>;

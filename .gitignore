@@ -9,3 +9,4 @@ warden.config.yaml
 
 # internal working notes — never publish
 docs/build-log.md
+warden-audit.jsonl
