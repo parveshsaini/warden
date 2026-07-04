@@ -1,0 +1,44 @@
+{
+  "name": "mcp-warden",
+  "version": "0.0.1",
+  "description": "Warden — an open-source MCP gateway. A control plane for AI tool access: security screening and observability for Model Context Protocol servers.",
+  "license": "MIT",
+  "author": "Parvesh Saini",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/parveshsaini/warden.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "mcp-warden": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "gateway",
+    "proxy",
+    "security",
+    "observability",
+    "prompt-injection",
+    "tool-poisoning"
+  ]
+}
