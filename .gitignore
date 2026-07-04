@@ -6,3 +6,6 @@ coverage/
 .env.*
 .DS_Store
 warden.config.yaml
+
+# internal working notes — never publish
+docs/build-log.md

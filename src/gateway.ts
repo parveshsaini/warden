@@ -33,13 +33,13 @@ async function connectUpstream(config: ServerConfig): Promise<Client> {
 /**
  * Creates the Warden gateway: an MCP server that proxies tools/list and
  * tools/call to one upstream MCP server. Federation across multiple
- * upstreams lands in C2.
+ * upstreams is on the roadmap.
  */
 export async function createGateway(config: WardenConfig): Promise<Gateway> {
   const upstreamConfig = config.servers[0];
   if (!upstreamConfig || config.servers.length !== 1) {
     throw new Error(
-      `expected exactly one upstream server (federation lands in C2), got ${config.servers.length}`,
+      `expected exactly one upstream server (federation is not supported yet), got ${config.servers.length}`,
     );
   }
 

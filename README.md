@@ -28,14 +28,13 @@ npx @modelcontextprotocol/inspector --cli node dist/cli.js --method tools/call -
 
 ## Roadmap
 
-- [x] **C0 — Repo scaffold**: TypeScript strict, pnpm, vitest, Biome, CI
-- [x] **C1 — Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
-- [ ] **C2 — Federation + Streamable HTTP**: ≥2 servers behind one endpoint, namespaced catalog, config-driven
-- [ ] **C3 — Observability**: OTel trace per tool call, JSONL audit log, metrics
-- [ ] **C4 — Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
-- [ ] **C5 — Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
-- [ ] **C6 — Perf benchmark**: proxy overhead p50/p99, methodology committed
-- [ ] **C7 — Ship**: npm + Docker + Cloud Run reference deploy, auth, docs
+- [x] **Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
+- [ ] **Federation + Streamable HTTP**: many servers behind one endpoint, namespaced catalog, config-driven
+- [ ] **Observability**: OTel trace per tool call, JSONL audit log, metrics
+- [ ] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
+- [ ] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
+- [ ] **Performance benchmark**: proxy overhead p50/p99, methodology committed
+- [ ] **v0.1 release**: npm + Docker + Cloud Run reference deploy, auth, docs
 
 ## Planned architecture
 
