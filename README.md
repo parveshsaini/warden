@@ -12,12 +12,24 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** repository scaffold only. Nothing is proxied yet. This README will only ever claim what currently works — follow the roadmap below.
+> ⚠️ **Today:** Warden is a working stdio passthrough proxy for a single MCP server — `initialize`, `tools/list`, and `tools/call` round-trip through it (verified with MCP Inspector against `@modelcontextprotocol/server-everything`). No federation, security, or observability yet. This README will only ever claim what currently works — follow the roadmap below.
+
+## Quick start (dev)
+
+```bash
+pnpm install && pnpm build
+# warden.config.yaml
+# servers:
+#   - name: everything
+#     command: npx
+#     args: ["-y", "@modelcontextprotocol/server-everything"]
+npx @modelcontextprotocol/inspector --cli node dist/cli.js --method tools/call --tool-name echo --tool-arg "message=hi"
+```
 
 ## Roadmap
 
 - [x] **C0 — Repo scaffold**: TypeScript strict, pnpm, vitest, Biome, CI
-- [ ] **C1 — Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
+- [x] **C1 — Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
 - [ ] **C2 — Federation + Streamable HTTP**: ≥2 servers behind one endpoint, namespaced catalog, config-driven
 - [ ] **C3 — Observability**: OTel trace per tool call, JSONL audit log, metrics
 - [ ] **C4 — Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates

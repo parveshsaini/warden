@@ -40,5 +40,10 @@
     "observability",
     "prompt-injection",
     "tool-poisoning"
-  ]
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  }
 }
