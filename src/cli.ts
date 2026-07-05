@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createAuditLogger } from "./audit.js";
+import { resolveApiKeys } from "./auth.js";
 import { loadConfigFile } from "./config.js";
 import { type GatewayHooks, buildGatewayServer } from "./gateway.js";
 import { startHttpGateway } from "./http.js";
@@ -94,7 +95,15 @@ async function main(): Promise<void> {
 
   if (argv.includes("--http")) {
     const listen = config.http ?? { port: 3000, host: "127.0.0.1" };
-    await startHttpGateway(pool, { ...listen, hooks });
+    const apiKeys = resolveApiKeys(config.http?.auth?.apiKeys, process.env.WARDEN_API_KEYS);
+    if (apiKeys.length > 0) {
+      log(
+        `auth: Bearer API key required (${apiKeys.length} key${apiKeys.length === 1 ? "" : "s"})`,
+      );
+    } else if (!["127.0.0.1", "localhost", "::1"].includes(listen.host)) {
+      log(`warning: listening on ${listen.host} with no API keys — /mcp is open to the network`);
+    }
+    await startHttpGateway(pool, { ...listen, hooks, apiKeys });
     log(`mcp-warden v${WARDEN_VERSION} listening on http://${listen.host}:${listen.port}/mcp`);
     return;
   }

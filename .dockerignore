@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.git
+.github
+*.log
+warden.config.yaml
+warden.config.yml
+warden.config.json
+warden-audit.jsonl
+docs

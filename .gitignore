@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.terraform/
 coverage/
 *.log
 .env
@@ -13,3 +14,4 @@ coverage/
 # internal working notes — never publish
 docs/build-log.md
 warden-audit.jsonl
+demo/

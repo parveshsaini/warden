@@ -17,11 +17,29 @@ export const stdioServerSchema = z.object({
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
   env: z.record(z.string(), z.string()).default({}),
+  /** Per-request timeout for requests forwarded to this upstream (ms). */
+  timeoutMs: z.number().int().min(1).default(30_000),
+  /**
+   * Retry budget for idempotent requests (tools/list) against this upstream.
+   * tools/call is deliberately never retried — tool calls can have side
+   * effects, and a gateway must not replay them.
+   */
+  retries: z.number().int().min(0).max(5).default(1),
 });
 
 export const httpListenSchema = z.object({
   port: z.number().int().min(1).max(65535).default(3000),
   host: z.string().default("127.0.0.1"),
+  auth: z
+    .object({
+      /**
+       * Bearer keys accepted on POST /mcp and GET /metrics. Keys can also be
+       * supplied via the WARDEN_API_KEYS env var (comma-separated) so they
+       * don't have to live in the config file.
+       */
+      apiKeys: z.array(z.string().min(8, "API keys must be at least 8 characters")).min(1),
+    })
+    .optional(),
 });
 
 export const observabilitySchema = z.object({

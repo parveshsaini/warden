@@ -25,6 +25,8 @@ const fixtureConfig: WardenConfig = {
       command: process.execPath,
       args: ["test/fixtures/math-server.mjs"],
       env: {},
+      timeoutMs: 30_000,
+      retries: 1,
     },
   ],
 };

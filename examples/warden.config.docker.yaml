@@ -1,0 +1,24 @@
+# Warden config for running inside a container (see docker-compose.yaml).
+servers:
+  - name: everything
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+
+http:
+  port: 3000
+  host: 0.0.0.0 # bind beyond loopback so the port mapping works
+  # API keys can live here instead of the WARDEN_API_KEYS env var:
+  # auth:
+  #   apiKeys: ["replace-with-a-long-random-key"]
+
+observability:
+  audit:
+    path: /tmp/warden-audit.jsonl # /app is read-only for the runtime user
+
+security:
+  detector:
+    tier: heuristic
+    scanDescriptions: true
+    scanOutputs: true
+    mode: block

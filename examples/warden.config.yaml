@@ -8,11 +8,17 @@ servers:
     transport: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/dir"]
+    timeoutMs: 30000 # per-request upstream timeout (default 30s)
+    retries: 1 # retries for tools/list only; tools/call is never replayed
 
 # Optional: serve over Streamable HTTP with `mcp-warden --http` (default is stdio).
 http:
   port: 3000
   host: 127.0.0.1
+  # Optional Bearer-key auth for /mcp and /metrics (or set WARDEN_API_KEYS,
+  # comma-separated, to keep keys out of the config file):
+  # auth:
+  #   apiKeys: ["replace-with-a-long-random-key"]
 
 # Optional: traces, audit log, metrics. Zero overhead when omitted.
 observability:

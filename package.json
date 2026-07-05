@@ -1,6 +1,6 @@
 {
   "name": "mcp-warden",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Warden — an open-source MCP gateway. A control plane for AI tool access: security screening and observability for Model Context Protocol servers.",
   "license": "MIT",
   "author": "Parvesh Saini",

@@ -12,7 +12,7 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). This README will only ever claim what currently works.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). HTTP mode supports **Bearer API-key auth**; upstream requests get per-server **timeouts** (and retries for idempotent listing, never for tool calls). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). Ships as a **Docker image** ([`Dockerfile`](Dockerfile), [compose example](examples/docker-compose.yaml)) with a **Terraform Cloud Run reference deploy** ([`deploy/cloudrun/`](deploy/cloudrun/)). This README will only ever claim what currently works.
 
 ## Quick start (dev)
 
@@ -36,6 +36,8 @@ npx @modelcontextprotocol/inspector --cli node dist/cli.js \
 node dist/cli.js --http   # serves http://127.0.0.1:3000/mcp
 npx @modelcontextprotocol/inspector --cli http://127.0.0.1:3000/mcp --transport http --method tools/list
 ```
+
+In HTTP mode, set `http.auth.apiKeys` in the config (or the `WARDEN_API_KEYS` env var, comma-separated) to require `Authorization: Bearer <key>` on `/mcp` and `/metrics` — `/healthz` stays open for probes. Warden warns at startup if it's listening beyond loopback with no keys. Each upstream gets a per-request `timeoutMs` (default 30s) and a `retries` budget applied to `tools/list` only — `tools/call` is deliberately never replayed, because tool calls can have side effects.
 
 ## Security
 
@@ -123,6 +125,19 @@ warden (full security)    1.208ms  1.616ms  2.782ms
 
 **Median overhead is ~0.6ms** — the cost of the extra stdio hop a gateway inherently adds. The **full security layer** (policy + rate limit + tool screening + per-output injection scanning + audit) adds only **~0.1ms** on top of bare passthrough: the detection work is nearly free next to the IPC hop. Against a real tool that does I/O (tens to hundreds of ms), Warden's fixed cost is in the noise. Absolute numbers are machine-dependent — see [`bench/README.md`](bench/README.md) for the method (interleaved paths, warmup, fixed payload) and the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) conformance check.
 
+## Deploy
+
+**Docker** — multi-stage [`Dockerfile`](Dockerfile) (Node 22 slim, non-root, prod deps only). Run it with the [compose example](examples/docker-compose.yaml):
+
+```bash
+WARDEN_API_KEYS=$(openssl rand -hex 24) docker compose -f examples/docker-compose.yaml up
+# MCP endpoint: http://localhost:3000/mcp  (Authorization: Bearer <key>)
+```
+
+Upstream MCP servers declared in the config run inside the same container, spawned over stdio.
+
+**Cloud Run** — [`deploy/cloudrun/`](deploy/cloudrun/) is a Terraform reference deploy: scale-to-zero Cloud Run v2 service, config and API keys delivered via Secret Manager, dedicated service account, `/healthz` startup probe. See its [README](deploy/cloudrun/README.md).
+
 ## Roadmap
 
 - [x] **Passthrough proxy**: stdio MCP server ⇄ one real MCP server (`initialize`, `tools/list`, `tools/call`)
@@ -133,7 +148,7 @@ warden (full security)    1.208ms  1.616ms  2.782ms
 - [x] **Performance benchmark**: proxy overhead p50/p99, methodology committed
 - [ ] **v0.1 release**: npm + Docker + Cloud Run reference deploy, auth, docs
 
-## Planned architecture
+## Architecture
 
 ```
 MCP client (Claude, Cursor, ...)

@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
+import { isAuthorized } from "./auth.js";
 import { type GatewayHooks, buildGatewayServer } from "./gateway.js";
 import type { UpstreamPool } from "./upstreams.js";
 
@@ -8,6 +9,8 @@ export interface HttpGatewayOptions {
   port: number;
   host: string;
   hooks?: GatewayHooks;
+  /** When non-empty, POST /mcp and GET /metrics require a matching Bearer key. */
+  apiKeys?: string[];
 }
 
 /**
@@ -24,7 +27,28 @@ export async function startHttpGateway(
   const app = express();
   app.use(express.json());
 
-  app.post("/mcp", async (req, res) => {
+  const apiKeys = options.apiKeys ?? [];
+  // Guards /mcp and /metrics; /healthz stays open for load-balancer probes.
+  const requireApiKey = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (apiKeys.length === 0 || isAuthorized(req.header("authorization"), apiKeys)) {
+      next();
+      return;
+    }
+    res
+      .status(401)
+      .set("WWW-Authenticate", "Bearer")
+      .json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "unauthorized: missing or invalid API key" },
+        id: null,
+      });
+  };
+
+  app.post("/mcp", requireApiKey, async (req, res) => {
     const server = buildGatewayServer(pool, options.hooks);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -63,7 +87,7 @@ export async function startHttpGateway(
     res.json({ status: "ok", servers: pool.serverNames });
   });
 
-  app.get("/metrics", (_req, res) => {
+  app.get("/metrics", requireApiKey, (_req, res) => {
     const metrics = options.hooks?.metrics;
     if (!metrics) {
       res.status(404).json({ error: "metrics not enabled" });

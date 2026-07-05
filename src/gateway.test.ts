@@ -13,6 +13,8 @@ const fixtureConfig: WardenConfig = {
       command: process.execPath,
       args: ["test/fixtures/echo-server.mjs"],
       env: {},
+      timeoutMs: 30_000,
+      retries: 1,
     },
     {
       name: "math",
@@ -20,6 +22,8 @@ const fixtureConfig: WardenConfig = {
       command: process.execPath,
       args: ["test/fixtures/math-server.mjs"],
       env: {},
+      timeoutMs: 30_000,
+      retries: 1,
     },
   ],
 };
