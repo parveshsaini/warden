@@ -12,12 +12,13 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). HTTP mode supports **Bearer API-key auth**; upstream requests get per-server **timeouts** (and retries for idempotent listing, never for tool calls). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). Ships as a **Docker image** ([`Dockerfile`](Dockerfile), [compose example](examples/docker-compose.yaml)) with a **Terraform Cloud Run reference deploy** ([`deploy/cloudrun/`](deploy/cloudrun/)). This README will only ever claim what currently works.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). HTTP mode supports **Bearer API-key auth**; upstream requests get per-server **timeouts** (and retries for idempotent listing, never for tool calls). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). Ships on **npm** ([`warden-gateway`](https://www.npmjs.com/package/warden-gateway)) and as a **Docker image** ([`ghcr.io/parveshsaini/warden`](https://github.com/parveshsaini/warden/pkgs/container/warden)), with a **Terraform Cloud Run reference deploy** ([`deploy/cloudrun/`](deploy/cloudrun/)). This README will only ever claim what currently works.
 
-## Quick start (dev)
+## Quick start
 
 ```bash
-pnpm install && pnpm build
+# from npm — no clone needed (or: pnpm install && pnpm build from source)
+npm install -g warden-gateway     # or run via npx warden-gateway
 
 # warden.config.yaml — see examples/warden.config.yaml
 # servers:
@@ -29,11 +30,11 @@ pnpm install && pnpm build
 #     args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
 
 # stdio (default) — tools appear as everything__echo, fs__read_file, ...
-npx @modelcontextprotocol/inspector --cli node dist/cli.js \
+npx @modelcontextprotocol/inspector --cli warden-gateway \
   --method tools/call --tool-name everything__echo --tool-arg "message=hi"
 
 # Streamable HTTP
-node dist/cli.js --http   # serves http://127.0.0.1:3000/mcp
+warden-gateway --http   # serves http://127.0.0.1:3000/mcp
 npx @modelcontextprotocol/inspector --cli http://127.0.0.1:3000/mcp --transport http --method tools/list
 ```
 
@@ -127,7 +128,13 @@ warden (full security)    1.208ms  1.616ms  2.782ms
 
 ## Deploy
 
-**Docker** — multi-stage [`Dockerfile`](Dockerfile) (Node 22 slim, non-root, prod deps only). Run it with the [compose example](examples/docker-compose.yaml):
+**Docker** — published image at `ghcr.io/parveshsaini/warden` (multi-stage [`Dockerfile`](Dockerfile): Node 22 slim, non-root, prod deps only):
+
+```bash
+docker pull ghcr.io/parveshsaini/warden:0.1.0
+```
+
+Or build locally with the [compose example](examples/docker-compose.yaml):
 
 ```bash
 WARDEN_API_KEYS=$(openssl rand -hex 24) docker compose -f examples/docker-compose.yaml up
@@ -146,7 +153,7 @@ Upstream MCP servers declared in the config run inside the same container, spawn
 - [x] **Security layer**: policy engine, rate limiting, tool-poisoning/injection detector (heuristic + LLM-judge tiers), approval gates
 - [x] **Security eval benchmark**: labeled corpus + scoring harness publishing precision/recall
 - [x] **Performance benchmark**: proxy overhead p50/p99, methodology committed
-- [ ] **v0.1 release**: npm + Docker + Cloud Run reference deploy, auth, docs
+- [x] **v0.1 release**: [npm (`warden-gateway`)](https://www.npmjs.com/package/warden-gateway) + [Docker (GHCR)](https://github.com/parveshsaini/warden/pkgs/container/warden) + Cloud Run reference deploy, auth, docs
 
 ## Architecture
 
