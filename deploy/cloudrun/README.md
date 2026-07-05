@@ -19,15 +19,15 @@ Terraform for a minimal, production-shaped Warden deployment on Google Cloud Run
 #    other registries directly):
 gcloud artifacts repositories create warden --repository-format=docker \
   --location=us-central1
-docker build -t us-central1-docker.pkg.dev/$PROJECT/warden/mcp-warden:0.1.0 .
-docker push us-central1-docker.pkg.dev/$PROJECT/warden/mcp-warden:0.1.0
+docker build -t us-central1-docker.pkg.dev/$PROJECT/warden/warden-gateway:0.1.0 .
+docker push us-central1-docker.pkg.dev/$PROJECT/warden/warden-gateway:0.1.0
 
 # 2. Deploy
 cd deploy/cloudrun
 terraform init
 terraform apply \
   -var project_id=$PROJECT \
-  -var image=us-central1-docker.pkg.dev/$PROJECT/warden/mcp-warden:0.1.0 \
+  -var image=us-central1-docker.pkg.dev/$PROJECT/warden/warden-gateway:0.1.0 \
   -var api_keys=$(openssl rand -hex 24)
 
 # 3. Point an MCP client at it

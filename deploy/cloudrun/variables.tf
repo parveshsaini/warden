@@ -10,7 +10,7 @@ variable "region" {
 }
 
 variable "image" {
-  description = "Warden container image in Artifact Registry, e.g. us-central1-docker.pkg.dev/PROJECT/warden/mcp-warden:0.1.0."
+  description = "Warden container image in Artifact Registry, e.g. us-central1-docker.pkg.dev/PROJECT/warden/warden-gateway:0.1.0."
   type        = string
 }
 

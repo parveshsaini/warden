@@ -3,7 +3,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import type { WardenConfig } from "./config.js";
 
-export const TRACER_NAME = "mcp-warden";
+export const TRACER_NAME = "warden-gateway";
 
 /** Returns the gateway tracer; a no-op tracer unless a provider was started. */
 export function getTracer(): Tracer {
@@ -29,7 +29,7 @@ export function startTelemetry(config: WardenConfig): (() => Promise<void>) | un
     ? endpoint
     : new URL("/v1/traces", endpoint).toString();
   const sdk = new NodeSDK({
-    serviceName: "mcp-warden",
+    serviceName: "warden-gateway",
     traceExporter: new OTLPTraceExporter({ url: exporterUrl }),
   });
   sdk.start();

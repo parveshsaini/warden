@@ -11,7 +11,7 @@ servers:
     timeoutMs: 30000 # per-request upstream timeout (default 30s)
     retries: 1 # retries for tools/list only; tools/call is never replayed
 
-# Optional: serve over Streamable HTTP with `mcp-warden --http` (default is stdio).
+# Optional: serve over Streamable HTTP with `warden-gateway --http` (default is stdio).
 http:
   port: 3000
   host: 127.0.0.1

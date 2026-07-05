@@ -104,13 +104,13 @@ async function main(): Promise<void> {
       log(`warning: listening on ${listen.host} with no API keys — /mcp is open to the network`);
     }
     await startHttpGateway(pool, { ...listen, hooks, apiKeys });
-    log(`mcp-warden v${WARDEN_VERSION} listening on http://${listen.host}:${listen.port}/mcp`);
+    log(`warden-gateway v${WARDEN_VERSION} listening on http://${listen.host}:${listen.port}/mcp`);
     return;
   }
 
   const server = buildGatewayServer(pool, hooks);
   await server.connect(new StdioServerTransport());
-  log(`mcp-warden v${WARDEN_VERSION} ready on stdio`);
+  log(`warden-gateway v${WARDEN_VERSION} ready on stdio`);
 }
 
 main().catch((error) => {

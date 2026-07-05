@@ -1,5 +1,5 @@
 {
-  "name": "mcp-warden",
+  "name": "warden-gateway",
   "version": "0.1.0",
   "description": "Warden — an open-source MCP gateway. A control plane for AI tool access: security screening and observability for Model Context Protocol servers.",
   "license": "MIT",
@@ -13,12 +13,13 @@
     "node": ">=22"
   },
   "bin": {
-    "mcp-warden": "dist/cli.js"
+    "warden-gateway": "dist/cli.js"
   },
   "main": "dist/index.js",
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "pnpm build",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

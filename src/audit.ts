@@ -39,7 +39,7 @@ export interface AuditOptions {
 /** Structured JSONL audit trail of every tool call through the gateway. */
 export function createAuditLogger(options: AuditOptions): AuditLogger {
   const logger = pino(
-    { base: { service: "mcp-warden" } },
+    { base: { service: "warden-gateway" } },
     destination({ dest: options.path, mkdir: true }),
   );
   return {

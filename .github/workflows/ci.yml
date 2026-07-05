@@ -27,5 +27,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t mcp-warden .
-      - run: docker run --rm mcp-warden node dist/cli.js --version
+      - run: docker build -t warden-gateway .
+      - run: docker run --rm warden-gateway node dist/cli.js --version
