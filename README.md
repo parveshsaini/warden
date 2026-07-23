@@ -12,7 +12,7 @@ Backed by a published security-detection benchmark (precision/recall on a labele
 
 ## Status
 
-> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.5% precision / 87.8% recall (F1 90.5%)** on a labeled corpus of 93 tool definitions, offline heuristic tier, via `pnpm eval` (see [`evals/`](evals/)). HTTP mode supports **Bearer API-key auth**; upstream requests get per-server **timeouts** (and retries for idempotent listing, never for tool calls). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). Ships on **npm** ([`warden-gateway`](https://www.npmjs.com/package/warden-gateway)) and as a **Docker image** ([`ghcr.io/parveshsaini/warden`](https://github.com/parveshsaini/warden/pkgs/container/warden)), with a **Terraform Cloud Run reference deploy** ([`deploy/cloudrun/`](deploy/cloudrun/)). This README will only ever claim what currently works.
+> ⚠️ **Today:** Warden federates multiple MCP servers behind one gateway — a unified, per-server-namespaced tool catalog served over **stdio** and **Streamable HTTP**, with `tools/call` routed to the owning upstream (verified with MCP Inspector against `server-everything` + `server-filesystem`). Every tool call is **traced** (OpenTelemetry → OTLP), **audited** (structured JSONL), and **counted** (`/metrics`), and passes through a **security layer**: policy rules, rate limiting, approval gating, and a tool-poisoning/prompt-injection detector that quarantines malicious tool definitions and blocks injected tool outputs. Detection accuracy is measured by a committed, reproducible benchmark — **93.9% precision / 93.0% recall (F1 93.5%)** on a labeled corpus of 193 tool definitions with the LLM-judge tier enabled, via `pnpm eval` (see [`evals/`](evals/)); the offline heuristic tier alone scores 87.8% / 43.0%. HTTP mode supports **Bearer API-key auth**; upstream requests get per-server **timeouts** (and retries for idempotent listing, never for tool calls). Proxy overhead is measured too — **~0.6ms median** added latency, security layer nearly free on top (`pnpm bench`, see [`bench/`](bench/)). Ships on **npm** ([`warden-gateway`](https://www.npmjs.com/package/warden-gateway)) and as a **Docker image** ([`ghcr.io/parveshsaini/warden`](https://github.com/parveshsaini/warden/pkgs/container/warden)), with a **Terraform Cloud Run reference deploy** ([`deploy/cloudrun/`](deploy/cloudrun/)). This README will only ever claim what currently works.
 
 ## Quick start
 
@@ -55,8 +55,11 @@ security:
   rateLimit:
     callsPerMinute: 120             # token bucket, shared per gateway process
   detector:
-    tier: heuristic                 # "heuristic" (no API key) or "llm" (adds a
-                                    # Claude judge via ANTHROPIC_API_KEY)
+    tier: heuristic                 # "heuristic" (no API key) or "llm" (adds an
+                                    # LLM judge on top of the rules)
+    provider: gemini                # "gemini" (GEMINI_API_KEY) or "anthropic"
+                                    # (ANTHROPIC_API_KEY); llm tier only
+    # model: gemini-3.1-flash-lite  # defaults to the provider's cheap judge model
     scanDescriptions: true          # quarantine poisoned tool definitions
     scanOutputs: true               # block prompt injection in tool results
     mode: block                     # or "warn" to only audit
@@ -65,7 +68,7 @@ security:
                                     # unless an approval handler is wired in
 ```
 
-What the detector catches (heuristic tier — rule-based, offline): hidden instruction tags (`<IMPORTANT>`-style tool poisoning), instruction overrides, concealment ("don't tell the user"), sensitive-file access lures (`~/.ssh`, `.env`, ...), exfiltration to external URLs, cross-tool shadowing, invisible Unicode, and encoded payloads. The `llm` tier escalates anything the rules don't conclusively flag to a Claude model for a second opinion, and degrades gracefully to the heuristic result if the API is unavailable.
+What the detector catches (heuristic tier — rule-based, offline): hidden instruction tags (`<IMPORTANT>`-style tool poisoning), instruction overrides, concealment ("don't tell the user"), sensitive-file access lures (`~/.ssh`, `.env`, ...), exfiltration to external URLs, cross-tool shadowing, invisible Unicode, and encoded payloads. The `llm` tier escalates anything the rules don't conclusively flag to a cheap LLM judge (Gemini or Claude) for a second opinion, and degrades gracefully to the heuristic result if the API is unavailable.
 
 A quarantined tool disappears from the federated catalog and calls to it are rejected — here against this repo's poisoned fixture server (`test/fixtures/poisoned-server.mjs`, upstream name `px`):
 
@@ -80,16 +83,23 @@ Every denial lands in the audit log with a `denyReason` (`policy`, `rate_limit`,
 
 ### How good is the detector?
 
-Not a claim — a number. [`evals/`](evals/) holds a committed corpus of 93 labeled tool definitions (malicious tool-poisoning/injection/exfiltration/credential-theft plus realistic benign tools that legitimately mention files, URLs, and secrets) and a harness that scores the detector. Reproduce with `pnpm eval`:
+Not a claim — a number. [`evals/`](evals/) holds a committed corpus of 193 labeled tool definitions (tool poisoning, prompt injection, exfiltration, credential theft, obfuscation, rug pulls, parameter-schema injection, and sabotage — plus realistic benign tools that legitimately mention files, URLs, and secrets, including security tools whose descriptions necessarily read like attacks) and a harness that scores the detector. Reproduce with `pnpm eval`:
 
-```
-Blocking decision (verdict = malicious -> quarantined):
-  precision: 93.5%   (43/46 flagged were truly malicious)
-  recall:    87.8%   (43/49 malicious tools blocked)
-  F1:        90.5%
-```
+| tier | precision | recall | F1 | cost / 1k tools |
+| --- | --- | --- | --- | --- |
+| `heuristic` (offline, no API key) | 87.8% | 43.0% | 57.7% | $0 |
+| `llm` (heuristic + Gemini judge) | **93.9%** | **93.0%** | **93.5%** | ~$0.072 |
 
-That's the offline heuristic tier — no API key. The corpus intentionally includes keyword-free semantic attacks the rules are *not* expected to catch (they're the case for the LLM-judge tier), and the harness prints every false positive and false negative by id. See [`evals/README.md`](evals/README.md) for the data format and methodology.
+The heuristic tier is the default and needs no API key, but be clear about what
+it buys you: **the corpus was doubled to 193 entries with attack families the
+rules were never written for, and the heuristic tier blocks 0 of those 51 new
+attacks** — 0% on rug pulls, schema injection, and sabotage. Keyword matching
+doesn't degrade gracefully against novel techniques; it fails outright. The `llm`
+tier takes recall from 43% to 93%. The harness prints every false positive and
+false negative by id. Reproduce it with `pnpm eval --tier llm`. See
+[`evals/README.md`](evals/README.md) for the data format and methodology, and
+[`docs/llm-judge-benchmark.md`](docs/llm-judge-benchmark.md) for the corpus
+composition, per-model comparison, and cost analysis.
 
 ## Observability
 

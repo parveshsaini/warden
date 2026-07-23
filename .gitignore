@@ -13,5 +13,7 @@ coverage/
 
 # internal working notes — never publish
 docs/build-log.md
+FRONTEND_BRIEF.md
+assets/
 warden-audit.jsonl
 demo/

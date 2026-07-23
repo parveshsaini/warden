@@ -25,11 +25,20 @@ describe("heuristic detector benchmark", () => {
   // Committed floors: the heuristic tier is deterministic and offline, so these
   // guard against silent regressions when rules or the corpus change. Margins
   // sit below the current numbers so the corpus can grow without churn.
+  //
+  // These dropped sharply when the corpus grew from 93 to 193 entries. That is
+  // a corpus change, not a rules regression: the 100 added entries deliberately
+  // cover attack families the rules were never written for (rug pulls, schema
+  // injection, homoglyphs, persistence), and the heuristic tier blocks none of
+  // them. The rules were left untouched on purpose so the benchmark keeps
+  // measuring them against an independent target rather than being retrofitted
+  // to pass. Recall here is a floor for the *offline* tier only — the llm tier
+  // is what closes the gap. See docs/llm-judge-benchmark.md.
   it("meets the committed precision/recall floors", async () => {
     const { metrics } = await runEval();
-    expect(metrics.precision).toBeGreaterThanOrEqual(0.9);
-    expect(metrics.recall).toBeGreaterThanOrEqual(0.85);
-    expect(metrics.f1).toBeGreaterThanOrEqual(0.88);
+    expect(metrics.precision).toBeGreaterThanOrEqual(0.85);
+    expect(metrics.recall).toBeGreaterThanOrEqual(0.4);
+    expect(metrics.f1).toBeGreaterThanOrEqual(0.54);
   });
 
   it("blocks the classic hidden-tag tool-poisoning attack", async () => {
