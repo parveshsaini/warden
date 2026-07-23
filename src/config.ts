@@ -77,9 +77,12 @@ export const policySchema = z.object({
 });
 
 export const detectorSchema = z.object({
-  /** "heuristic" needs no API key; "llm" adds a Claude judge via ANTHROPIC_API_KEY. */
+  /** "heuristic" needs no API key; "llm" adds an LLM judge via the provider's API key. */
   tier: z.enum(["heuristic", "llm"]).default("heuristic"),
-  model: z.string().default("claude-haiku-4-5-20251001"),
+  /** Which judge backs the "llm" tier: Anthropic (ANTHROPIC_API_KEY) or Gemini (GEMINI_API_KEY). */
+  provider: z.enum(["anthropic", "gemini"]).default("anthropic"),
+  /** Defaults to the provider's cheap screening model — see DEFAULT_JUDGE_MODELS. */
+  model: z.string().optional(),
   /** Scan upstream tool descriptions; malicious tools are quarantined. */
   scanDescriptions: z.boolean().default(true),
   /** Scan tool call results for prompt injection before they reach the client. */

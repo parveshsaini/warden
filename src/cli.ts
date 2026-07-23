@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createAuditLogger } from "./audit.js";
 import { resolveApiKeys } from "./auth.js";
 import { loadConfigFile } from "./config.js";
+import { JUDGE_API_KEY_ENV } from "./detector/index.js";
 import { type GatewayHooks, buildGatewayServer } from "./gateway.js";
 import { startHttpGateway } from "./http.js";
 import { WARDEN_VERSION } from "./index.js";
@@ -77,7 +78,8 @@ async function main(): Promise<void> {
     ].filter(Boolean);
     log(`security enabled: ${parts.join(", ")}`);
     if (config.security.detector?.tier === "llm" && hooks.security.detectorTier === "heuristic") {
-      log("ANTHROPIC_API_KEY not set — detector running heuristic tier only");
+      const envVar = JUDGE_API_KEY_ENV[config.security.detector.provider];
+      log(`${envVar} not set — detector running heuristic tier only`);
     }
   }
 

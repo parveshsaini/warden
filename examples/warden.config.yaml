@@ -37,7 +37,9 @@ security:
   rateLimit:
     callsPerMinute: 120 # shared token bucket per gateway process
   detector:
-    tier: heuristic # "llm" adds a Claude judge (needs ANTHROPIC_API_KEY)
+    tier: heuristic # "llm" adds an LLM judge on top of the rules
+    provider: gemini # llm tier only: "gemini" (GEMINI_API_KEY) or "anthropic" (ANTHROPIC_API_KEY)
+    # model: gemini-3.1-flash-lite # defaults to the provider's cheap judge model
     scanDescriptions: true # quarantine poisoned tool definitions
     scanOutputs: true # block prompt injection in tool results
     mode: block # "warn" only audits instead of blocking
