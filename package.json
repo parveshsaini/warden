@@ -25,7 +25,7 @@
     "lint:fix": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "eval": "tsx evals/run.ts",
+    "eval": "tsx --env-file-if-exists=.env evals/run.ts",
     "bench": "tsx bench/latency.ts"
   },
   "devDependencies": {

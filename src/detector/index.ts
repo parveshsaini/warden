@@ -1,11 +1,27 @@
 import type { DetectorConfig } from "../config.js";
+import { GeminiJudgeDetector } from "./gemini.js";
 import { HeuristicDetector } from "./heuristic.js";
 import { LlmJudgeDetector } from "./llm.js";
 import { type Detector, type ScanInput, type ScanResult, worseVerdict } from "./types.js";
 
+export { GeminiJudgeDetector } from "./gemini.js";
 export { HeuristicDetector } from "./heuristic.js";
 export { LlmJudgeDetector } from "./llm.js";
+export { JUDGE_SYSTEM_PROMPT } from "./judge.js";
+export type { JudgeUsage } from "./judge.js";
 export type { Detector, Finding, ScanInput, ScanResult, Verdict } from "./types.js";
+
+/** Cheap, fast screening models — the judge classifies, it doesn't reason. */
+export const DEFAULT_JUDGE_MODELS = {
+  anthropic: "claude-haiku-4-5-20251001",
+  gemini: "gemini-3.1-flash-lite",
+} as const;
+
+/** Env var carrying each provider's API key. */
+export const JUDGE_API_KEY_ENV = {
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GEMINI_API_KEY",
+} as const;
 
 /**
  * Runs the cheap tier first and only escalates to the judge when the cheap
@@ -41,17 +57,22 @@ export class TieredDetector implements Detector {
 }
 
 /**
- * Builds the detector for a config. The "llm" tier requires ANTHROPIC_API_KEY;
- * without one it falls back to heuristic-only (and reports that via `tier`).
+ * Builds the detector for a config. The "llm" tier requires the configured
+ * provider's API key; without one it falls back to heuristic-only (and reports
+ * that via `tier`).
  */
 export function createDetector(
   config: DetectorConfig,
   options: { onJudgeError?: (error: unknown) => void } = {},
 ): { detector: Detector; tier: "heuristic" | "llm" } {
   const heuristic = new HeuristicDetector();
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env[JUDGE_API_KEY_ENV[config.provider]];
   if (config.tier === "llm" && apiKey) {
-    const judge = new LlmJudgeDetector({ apiKey, model: config.model });
+    const model = config.model ?? DEFAULT_JUDGE_MODELS[config.provider];
+    const judge =
+      config.provider === "gemini"
+        ? new GeminiJudgeDetector({ apiKey, model })
+        : new LlmJudgeDetector({ apiKey, model });
     return { detector: new TieredDetector(heuristic, judge, options.onJudgeError), tier: "llm" };
   }
   return { detector: heuristic, tier: "heuristic" };
